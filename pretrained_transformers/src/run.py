@@ -76,6 +76,16 @@ else:
 if args.function == 'pretrain':
     assert args.writing_params_path is not None
     # TODO [part f]:
+    #text = open(args.pretrain_corpus_path, encoding='utf-8').read()
+    #pretrain_dateset = dataset.NameDataset(pretrain_dataset, text)
+    tconf = trainer.TrainerConfig(max_epochs=650, batch_size=128, learning_rate=args.pretrain_lr,
+                                  lr_decay=True, warmup_tokens=512 * 20,
+                                  final_tokens=2 * len(pretrain_dataset) * block_size,
+                                  num_workers=0, writer=writer)
+    trainer_instance = trainer.Trainer(vanilla_model, pretrain_dataset, None, tconf)
+    trainer_instance.train()
+
+    torch.save(vanilla_model.state_dict(), args.writing_params_path)
     # - Given:
     #     1. A corpus specified in args.pretrain_corpus_path
     #     2. An output path args.writing_params_path for the model parameters
@@ -92,25 +102,33 @@ if args.function == 'pretrain':
     # warmup_tokens=512*20
     # final_tokens=200*len(pretrain_dataset)*block_size
     # num_workers=4
-    # writer=writer 
-    raise NotImplementedError
+    # writer=writer
 elif args.function == 'finetune':
     assert args.writing_params_path is not None
     assert args.finetune_corpus_path is not None
     # TODO [part c] [part f]:
-    #with open(args.finetune_corpus_path, 'r', encoding='utf-8') as f:
-    #    finetune_corpus = f.read()
-    text = open(args.finetune_corpus_path, encoding='utf-8').read()
-    finetune_dateset = dataset.NameDataset(pretrain_dataset, text)
-    tconf = trainer.TrainerConfig(max_epochs=75, batch_size=256, learning_rate=args.finetune_lr,
-                                  lr_decay=True, warmup_tokens=512 * 20,
-                                  final_tokens=2 * len(pretrain_dataset) * block_size,
-                                  num_workers=0, writer=writer)
-    trainer_instance = trainer.Trainer(vanilla_model, finetune_dateset, None, tconf)
-    trainer_instance.train()
-    torch.save(vanilla_model.state_dict(), args.writing_params_path)
-    #with open(args.writing_params_path, 'w', encoding='utf-8') as f:
-    #    f.write(str([str(param) for param in vanilla_model.parameters()]))
+    if args.reading_params_path is None:
+        text = open(args.finetune_corpus_path, encoding='utf-8').read()
+        finetune_dateset = dataset.NameDataset(pretrain_dataset, text)
+        tconf = trainer.TrainerConfig(max_epochs=75, batch_size=256, learning_rate=args.finetune_lr,
+                                      lr_decay=True, warmup_tokens=512 * 20,
+                                      final_tokens=2 * len(pretrain_dataset) * block_size,
+                                      num_workers=0, writer=writer)
+        trainer_instance = trainer.Trainer(vanilla_model, finetune_dateset, None, tconf)
+        trainer_instance.train()
+        torch.save(vanilla_model.state_dict(), args.writing_params_path)
+    else:
+        vanilla_model.load_state_dict(torch.load(args.reading_params_path))
+        text = open(args.finetune_corpus_path, encoding='utf-8').read()
+        finetune_dateset = dataset.NameDataset(pretrain_dataset, text)
+        tconf = trainer.TrainerConfig(max_epochs=10, batch_size=256, learning_rate=args.finetune_lr,
+                                      lr_decay=True, warmup_tokens=512 * 20,
+                                      final_tokens=2 * len(pretrain_dataset) * block_size,
+                                      num_workers=0, writer=writer)
+        trainer_instance = trainer.Trainer(vanilla_model, finetune_dateset, None, tconf)
+        trainer_instance.train()
+        torch.save(vanilla_model.state_dict(), args.writing_params_path)
+
     # - Given:
     #     1. A finetuning corpus specified in args.finetune_corpus_path
     #     2. A path args.reading_params_path containing pretrained model
@@ -157,12 +175,9 @@ elif args.function == 'evaluate':
             x = x + '⁇'
             x = torch.tensor([pretrain_dataset.stoi[s] for s in x], dtype=torch.long)[None, ...].to(device)
             pred = utils.sample(vanilla_model, x, 32, sample=False)[0]  # changed to vanilla_model
-            #print(pred)
             completion = ''.join([pretrain_dataset.itos[int(i)] for i in pred])
-            #print(completion)
             pred = completion.split('⁇')[1]
             predictions.append(pred)
-            #print(len(pred))
             fout.write(pred + '\n')
         total, correct = utils.evaluate_places(args.eval_corpus_path, predictions)
     if total > 0:

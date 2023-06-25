@@ -172,15 +172,34 @@ class CharCorruptionDataset(Dataset):
     def __getitem__(self, idx):
         # TODO [part e]: see spec above
         document = self.data[idx]
-        truncated_length = random.randint(4, int(self.block_size * 7 / 8))
+        if len(document) <= 4:
+            masked_string = f"{self.PAD_CHAR * self.block_size}"
+
+            x_str = masked_string[:-1]
+            y_str = masked_string[1:]
+
+            x = torch.tensor([self.stoi[c] for c in x_str], dtype=torch.long)
+            y = torch.tensor([self.stoi[c] for c in y_str], dtype=torch.long)
+
+            return x, y
+        truncated_length = random.randint(4, min(int(self.block_size * 7 / 8), len(document)))
         prefix_length = random.randint(0, truncated_length // 2)
-        masked_content_length = random.randint(truncated_length // 8, truncated_length * 3 // 8)
+        masked_content_length = random.randint(truncated_length // 8, (truncated_length * 3) // 8)
+        padding_length = self.block_size - truncated_length - 2
 
         prefix = document[:prefix_length]
         masked_content = document[prefix_length:prefix_length + masked_content_length]
-        suffix = document[prefix_length + masked_content_length:]
+        suffix = document[prefix_length + masked_content_length:truncated_length]
 
-        masked_string = f"{prefix}{self.MASK_CHAR}{suffix}{self.MASK_CHAR}{masked_content}{self.PAD_CHAR * (self.block_size - truncated_length - 2)}"
+        masked_string = f"{prefix}{self.MASK_CHAR}{suffix}{self.MASK_CHAR}{masked_content}{self.PAD_CHAR * padding_length}"
+        # print("masked string length: ", len(masked_string))
+        # print("block size: ", self.block_size)
+        # print("truncated length: ", truncated_length)
+        # print("prefix length: ", prefix_length)
+        # print("masked_content length: ", masked_content_length)
+        # print("suffix length: ", len(suffix))
+        # print("padding length: ", padding_length)
+        # print("document length: ", len(document))
         x_str = masked_string[:-1]
         y_str = masked_string[1:]
 
