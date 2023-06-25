@@ -171,7 +171,23 @@ class CharCorruptionDataset(Dataset):
 
     def __getitem__(self, idx):
         # TODO [part e]: see spec above
-        raise NotImplementedError
+        document = self.data[idx]
+        truncated_length = random.randint(4, int(self.block_size * 7 / 8))
+        prefix_length = random.randint(0, truncated_length // 2)
+        masked_content_length = random.randint(truncated_length // 8, truncated_length * 3 // 8)
+
+        prefix = document[:prefix_length]
+        masked_content = document[prefix_length:prefix_length + masked_content_length]
+        suffix = document[prefix_length + masked_content_length:]
+
+        masked_string = f"{prefix}{self.MASK_CHAR}{suffix}{self.MASK_CHAR}{masked_content}{self.PAD_CHAR * (self.block_size - truncated_length - 2)}"
+        x_str = masked_string[:-1]
+        y_str = masked_string[1:]
+
+        x = torch.tensor([self.stoi[c] for c in x_str], dtype=torch.long)
+        y = torch.tensor([self.stoi[c] for c in y_str], dtype=torch.long)
+
+        return x, y
 
 
 """
